@@ -1,6 +1,6 @@
 /*
     datrans: Convert any files to video.
-    Copyright (C) 2023  deadbread83  <srmomichi@yahoo.com>
+    Copyright (C) 2023  neopusser83  <srmomichi@yahoo.com>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
