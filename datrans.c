@@ -31,7 +31,7 @@
 #define PNG_HEIGHT 720
 
 #define PIXEL_SIZE 4
-#define WORD_SIZE 8
+#define WORD_SIZE 8 /* no needed anymore */
 
 void img_index(char *ptr, int num,int pid){
 	sprintf(ptr,"./%d_frames/frame_%06d.png",pid,num);
@@ -47,7 +47,7 @@ void get_bin(char c, int *num){
 
 char set_bin(int *num){
 
-	unsigned char byte;
+	unsigned char byte = 0;
 
 	for(int i=0;i<8;i++){
 		byte = (byte << 1) | num[i];
@@ -75,8 +75,6 @@ FILE *read_file(const char *filename, long int *filesize){
 	*filesize = ftell(fd);
 	fseek(fd,0L,SEEK_SET);
 
-	int size = *filesize;
-
 	return fd;
 }
 
@@ -89,10 +87,14 @@ void set_pixel(png_bytep row,int x, int color){
 int get_pixel(png_bytep row, int x, int y){
 
 	png_bytep px = &(row[x * 4]);
-/*
+
 //TODO!!
 
-	if((px[0] == 0 || px[0] == 255) && (px[1] == 0 || px[1] == 255) && (px[2] == 0 || px[2] == 255)){
+/*
+	if((px[0] == 0 || px[0] == 255) &&
+		(px[1] == 0 || px[1] == 255) &&
+		(px[2] == 0 || px[2] == 255)){
+		
 		if(px[0] == 255){
 			return 0;
 		}
@@ -114,6 +116,10 @@ int get_pixel(png_bytep row, int x, int y){
 	}
 	if(px[0] < 100){
 		return 1;
+	}
+	
+	else{
+		return 127;
 	}
 
 }
@@ -145,7 +151,9 @@ int encode(char *filename){
 		return(1);
 	}
 		
-	long unsigned int max_img_size = ((PNG_WIDTH*PNG_HEIGHT)/WORD_SIZE)/(PIXEL_SIZE*PIXEL_SIZE);
+	long unsigned int max_img_size;
+	max_img_size = ((PNG_WIDTH*PNG_HEIGHT)/WORD_SIZE)/(PIXEL_SIZE*PIXEL_SIZE);
+	
 	unsigned int img_quant = sz/max_img_size;
 
 	img_quant++;
@@ -156,7 +164,7 @@ int encode(char *filename){
 	
 	fprintf(stderr,"Press any key to continue...\n");
 
-	getchar();
+//	getchar();
 
 	long unsigned int buf_ind = 0;
 	
@@ -195,7 +203,7 @@ int encode(char *filename){
 			fprintf(stderr,"\b");
 		}
 
-		png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+		png = png_create_write_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
 
 		if(!png){
 			return 1;
@@ -287,8 +295,18 @@ int encode(char *filename){
 	}
 
 	else if(pidC == 0){
-		//ffmpeg -framerate 30 -i frame_%06d.png -c:v libx265 -crf 0 -vf fps=30 out.mp4
-		execlp("/usr/bin/ffmpeg","ffmpeg","-framerate","30","-i",ffm_input,"-c:v","libx264","-crf","0","-vf","fps=30",output_vid_name,"-hide_banner","-loglevel","error","-stats",NULL);
+		//ffmpeg -framerate 30 -i frame_%06d.png -c:v libx265 -crf 0 -vf
+		//fps=30 out.mp4
+		execlp("/usr/bin/ffmpeg","ffmpeg",
+			"-framerate","30",
+			"-i",ffm_input,
+			"-c:v","libx265","-crf","0",
+			"-vf","fps=30",
+			output_vid_name,
+			"-hide_banner",
+			"-loglevel","error","-stats",
+			NULL
+		);
 	}
 
 	else{
@@ -331,7 +349,12 @@ int decode(char *input_filename, char *output_filename){
 		printf("Extracting frames of %s\n",input_filename);
 	}
 	else if(pidC == 0){
-		execlp("/usr/bin/ffmpeg","ffmpeg","-i",input_filename,dir_ffm,"-hide_banner","-loglevel","error","-stats",NULL);
+		
+		execlp("/usr/bin/ffmpeg","ffmpeg",
+		"-i",input_filename,dir_ffm,
+		"-hide_banner","-loglevel","error","-stats",NULL
+		);
+	
 	}
 	else{
 		printf("Error creating child process.\n");
@@ -392,18 +415,16 @@ int decode(char *input_filename, char *output_filename){
 	
 	qsort(filenames,frame_count,sizeof(char *),compat);
 
+	int aprox_size = ((PNG_WIDTH*PNG_HEIGHT)/PIXEL_SIZE)*(frame_count);
+
 	printf("Frames: %d\n",frame_count);
-	printf("approximate size: %d\n",(((PNG_WIDTH*PNG_HEIGHT)/PIXEL_SIZE)*(frame_count)));
+	printf("approximate size: %d\n",aprox_size);
 	
 	getchar();
 
 	png_structp png;
 	png_infop info;
 	
-	int width,height;
-
-	png_bytep *row = (png_bytep *)malloc(4*PNG_WIDTH*sizeof(png_bytep) * PNG_HEIGHT);
-
 	int percent;
 	
 	for(int i=0;i<frame_count;i++){
@@ -440,8 +461,9 @@ int decode(char *input_filename, char *output_filename){
 		png_init_io(png,frame);
 		png_read_info(png,info);
 
-		width = png_get_image_width(png,info);
-		height = png_get_image_height(png,info);
+
+//		width = png_get_image_width(png,info);
+		int height = png_get_image_height(png,info);
 
 		png_byte color_type = png_get_color_type(png, info);
 		png_byte bit_depth = png_get_bit_depth(png, info);
@@ -459,17 +481,21 @@ int decode(char *input_filename, char *output_filename){
 			png_set_tRNS_to_alpha(png);
 		}
 
-		if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_PALETTE){
+		if (color_type == PNG_COLOR_TYPE_RGB ||
+			color_type == PNG_COLOR_TYPE_GRAY ||
+			color_type == PNG_COLOR_TYPE_PALETTE){
 			png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
 		}
 
-		if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA){
+		if (color_type == PNG_COLOR_TYPE_GRAY ||
+			color_type == PNG_COLOR_TYPE_GRAY_ALPHA){
 			png_set_gray_to_rgb(png);
 		}
 
 		png_read_update_info(png, info);
 
-		png_bytep *row_pointers = (png_bytep *)malloc(sizeof(png_bytep) * height);
+		png_bytep *row_pointers;
+		row_pointers = (png_bytep *)malloc(sizeof(png_bytep) * height);
 
 		for(int i=0;i<PNG_HEIGHT;i++){
 			row_pointers[i] = (png_byte *)malloc(png_get_rowbytes(png, info));
@@ -477,8 +503,6 @@ int decode(char *input_filename, char *output_filename){
 
 		png_read_image(png, row_pointers);
 
-		int x = 0;
-		int y = 0;
 		int k = 0;
 		int res;
 
@@ -536,13 +560,17 @@ int main(int argc, char *argv[]){
 	int opt;
 	
 	if(argc == 1){
-		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s -d [dir to decode] [output file]\n",argv[0],argv[0]);		
+		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s \
+		-d [dir to decode] [output file]\n",argv[0],argv[0]);
+		
 		return 1;		
 	}
 
 	if(!strcmp(argv[1],"-e")){
 		if(argc != 3){
-			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s -d [video to decode] [output file]\n",argv[0],argv[0]);		
+			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s \
+			-d [video to decode] [output file]\n",argv[0],argv[0]);		
+			
 			return 1;
 		}
 		opt = 1;
@@ -550,14 +578,18 @@ int main(int argc, char *argv[]){
 
 	else if(!strcmp(argv[1],"-d")){
 		if(argc != 4){
-			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s -d [video to decode] [output file]\n",argv[0],argv[0]);		
+			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s \
+			-d [video to decode] [output file]\n",argv[0],argv[0]);		
+			
 			return 1;
 		}
 		opt = 0;
 	}
 
 	else{
-		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s -d [video to decode] [output file]\n",argv[0],argv[0]);		
+		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s \
+		-d [video to decode] [output file]\n",argv[0],argv[0]);		
+		
 		return 1;	
 	}
 
