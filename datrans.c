@@ -16,6 +16,13 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+/*
+TODO:
+	* Implement fork() for MinGW.
+	* Implement image writing in threads for improved speed.
+	* Make the program independent of ffmpeg.
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <png.h>
@@ -24,8 +31,15 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <libgen.h>
+
+#ifndef __WIN32
+#include <sys/wait.h>
+#endif
+
+#ifdef __WIN32
+#include <windows.h>
+#endif
 
 #define PNG_WIDTH  1280
 #define PNG_HEIGHT 720
@@ -64,7 +78,7 @@ void print_num(int *arr){
 }
 
 FILE *read_file(const char *filename, long int *filesize){
-	FILE *fd = fopen(filename,"r");
+	FILE *fd = fopen(filename,"rb");
 
 	if(!fd){
 		printf("Error opening file : %s\n",filename);
@@ -125,18 +139,18 @@ int get_pixel(png_bytep row, int x, int y){
 }
 
 int dig(int num) {
-    int quan = 0;
+	int quan = 0;
 
-    if (num == 0) {
-        return 1;
-    }
+	if (num == 0) {
+		return 1;
+	}
 
-    while (num != 0) {
-        num = num / 10;
-        quan++;
-    }
+	while (num != 0) {
+		num = num / 10;
+		quan++;
+	}
 
-    return quan;
+	return quan;
 }
 
 int encode(char *filename){
@@ -158,13 +172,13 @@ int encode(char *filename){
 
 	img_quant++;
 
-	fprintf(stderr,"Max image size: %ld\n",max_img_size);
-	fprintf(stderr,"Input buffer size: %ld\n",sz);	
+	fprintf(stderr,"Max image size: %ld bytes\n",max_img_size);
+	fprintf(stderr,"Input buffer size: %ld bytes\n",sz);	
 	fprintf(stderr,"Frame quant: %d\n\n",img_quant);
 	
 	fprintf(stderr,"Press any key to continue...\n");
 
-//	getchar();
+	getchar();
 
 	long unsigned int buf_ind = 0;
 	
@@ -187,7 +201,12 @@ int encode(char *filename){
 	char dir[32];
 
 	sprintf(dir,"%d_frames",pid);
+
+	#ifndef __WIN32
 	mkdir(dir,0700);
+	#else
+	mkdir(dir);
+	#endif
 
 	char c;
 
@@ -196,7 +215,7 @@ int encode(char *filename){
 		img_index(png_filename,frame_index,pid);
 		png_output = fopen(png_filename,"wb");
 
-		percent = (100*frame_index)/img_quant + 1;
+		percent = (100*frame_index)/(img_quant-1);
 		fprintf(stderr,"Writing data to: %s | %d%%",png_filename,percent);
 
 		for(int i=0;i<46+dig(percent)+dig(pid)+1;i++){
@@ -281,6 +300,7 @@ int encode(char *filename){
 	free(num);
 	free(png_filename);
 
+	#ifndef __WIN32
 	pid_t pidC = fork();
 	char *ffm_input = (char *)malloc(sizeof(char) * 128);
 	sprintf(ffm_input,"%d_frames/frame_%%06d.png",pid);
@@ -320,8 +340,59 @@ int encode(char *filename){
 	free(ffm_input);
 	free(output_vid_name);
 
-	printf("\nAll done!\n");
+#else /*TODO!!!!*/
+/*
+	I hate using the system() function, but I couldn't find
+	an alternative for fork() function for MinGW. I'll work
+	on it.
+*/
+	FILE *ffmpeg_exe_path = fopen("ffmpeg.txt","r");
+	if(ffmpeg_exe_path == NULL){
+		perror("fmpeg.txt");
+		
+		return 1;
+	}
 	
+	fseek(ffmpeg_exe_path,0L,SEEK_END);
+	int fen_sz = ftell(ffmpeg_exe_path);
+	fseek(ffmpeg_exe_path,0L,SEEK_SET);
+	
+	if(fen_sz > 256){
+		fprintf(stderr, "fmpeg.txt is very large. Please check it.\n");
+		fclose(ffmpeg_exe_path);
+		return 1;
+	}
+	rewind(ffmpeg_exe_path);
+	fflush(ffmpeg_exe_path);
+	
+	char *ffm_bin = (char *)malloc(sizeof(char) * fen_sz);
+	fread(ffm_bin,sizeof(char),fen_sz,ffmpeg_exe_path);
+	ffm_bin[fen_sz] = '\0';
+
+	fclose(ffmpeg_exe_path);
+	
+	char *ffm_input = (char *)malloc(sizeof(char) * 128);
+	sprintf(ffm_input,"%d_frames/frame_%%06d.png",pid);
+	
+	char *output_vid_name = (char *)malloc(sizeof(char) * 512);
+	sprintf(output_vid_name,"%s.mp4",basename(filename));
+
+	char *ffm_args = (char *)malloc(sizeof(char) * 256);	
+	sprintf(ffm_args,"\"%s\" -framerate 30 -i %s \
+	-c:v libx265 -crf 0 -vf fps=30 %s -hide_banner -loglevel error \
+	-stats",ffm_bin,ffm_input,output_vid_name);
+		
+	system(ffm_args);
+
+	free(ffm_args);
+	free(ffm_input);
+	free(output_vid_name);
+#endif
+
+	printf("\nAll done!\n");
+
+	getchar();
+
 	return 0;
 }
 
@@ -339,8 +410,13 @@ int decode(char *input_filename, char *output_filename){
 
 	char *input_dir = (char *)malloc(sizeof(char) * 128);
 	sprintf(input_dir,"%d_frames",pid);
+	#ifndef __WIN32
 	mkdir(input_dir,0700);
-	
+	#else
+	mkdir(input_dir);
+	#endif
+
+	#ifndef __WIN32
 	pid_t pidC;
 	
 	pidC = fork();
@@ -364,12 +440,52 @@ int decode(char *input_filename, char *output_filename){
 	pidC = wait(&status);
 	free(dir_ffm);
 
-	FILE * out = fopen(output_filename,"w");
+#else /*TODO!!!!*/
+/*
+	I hate using the system() function, but I couldn't find
+	an alternative for fork() function for MinGW. I'll work
+	on it.
+*/
+
+	FILE *ffmpeg_exe_path = fopen("ffmpeg.txt","r");
+	if(ffmpeg_exe_path == NULL){
+		perror("fmpeg.txt");
+		
+		return 1;
+	}
+	
+	fseek(ffmpeg_exe_path,0L,SEEK_END);
+	int fen_sz = ftell(ffmpeg_exe_path);
+	fseek(ffmpeg_exe_path,0L,SEEK_SET);
+	
+	if(fen_sz > 256){
+		fprintf(stderr, "fmpeg.txt is very large. Please check it.\n");
+		fclose(ffmpeg_exe_path);		
+		return 1;
+	}
+	rewind(ffmpeg_exe_path);
+	fflush(ffmpeg_exe_path);
+	
+	char *ffm_bin = (char *)malloc(sizeof(char) * fen_sz);
+	fread(ffm_bin,sizeof(char),fen_sz,ffmpeg_exe_path);
+	ffm_bin[fen_sz] = '\0';
+
+	fclose(ffmpeg_exe_path);
+	
+	char *ffm_args = (char *)malloc(sizeof(char) * 256);	
+	sprintf(ffm_args,"\"%s\" -i %s %s -hide_banner -loglevel error -stats",
+	ffm_bin,input_filename,dir_ffm);
+	
+	system(ffm_args);	
+	
+	#endif
+
+	FILE * out = fopen(output_filename,"wb");
 	if(!out){
 		fprintf(stderr,"Error creating file: %s\n",output_filename);
 		return 1;
 	}
-
+	
 	DIR *dir = opendir(input_dir);
 	if(dir == NULL){
 		fprintf(stderr,"Error opening directory: %s\n",input_dir);
@@ -415,28 +531,28 @@ int decode(char *input_filename, char *output_filename){
 	
 	qsort(filenames,frame_count,sizeof(char *),compat);
 
-	int aprox_size = ((PNG_WIDTH*PNG_HEIGHT)/PIXEL_SIZE)*(frame_count);
+	int aprox_size = ((PNG_WIDTH*PNG_HEIGHT)/(PIXEL_SIZE*PIXEL_SIZE));
+	aprox_size = aprox_size*((frame_count)/WORD_SIZE);
 
 	printf("Frames: %d\n",frame_count);
-	printf("approximate size: %d\n",aprox_size);
-	
+	printf("approximate size: %d bytes\n",aprox_size);
+
 	getchar();
 
 	png_structp png;
 	png_infop info;
 	
 	int percent;
-	
-	for(int i=0;i<frame_count;i++){
 
-		percent = (100*i)/frame_count + 1;
+	for(int i=0;i<frame_count;i++){
+		percent = (100*i)/(frame_count-1);
 		fprintf(stderr,"Decoding %s  | %d%%",filenames[i],percent);
 
 		for(int i=0;i<47+dig(percent)+strlen(input_dir)+1;i++)
 			fprintf(stderr,"\b");
 
 
-		frame = fopen(filenames[i],"r");
+		frame = fopen(filenames[i],"rb");
 		if(!frame){
 			fprintf(stderr,"Error opening file: %s",filenames[i]);
 			return 1;
@@ -558,18 +674,18 @@ int decode(char *input_filename, char *output_filename){
 int main(int argc, char *argv[]){
 
 	int opt;
-	
+
 	if(argc == 1){
-		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s \
-		-d [dir to decode] [output file]\n",argv[0],argv[0]);
+		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s ",argv[0],argv[0]);
+		fprintf(stderr,"-d [video to decode] [output file]\n");		
 		
 		return 1;		
 	}
 
 	if(!strcmp(argv[1],"-e")){
 		if(argc != 3){
-			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s \
-			-d [video to decode] [output file]\n",argv[0],argv[0]);		
+			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s ",argv[0],argv[0]);
+			fprintf(stderr,"-d [video to decode] [output file]\n");		
 			
 			return 1;
 		}
@@ -578,8 +694,8 @@ int main(int argc, char *argv[]){
 
 	else if(!strcmp(argv[1],"-d")){
 		if(argc != 4){
-			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s \
-			-d [video to decode] [output file]\n",argv[0],argv[0]);		
+			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s ",argv[0],argv[0]);
+			fprintf(stderr,"-d [video to decode] [output file]\n");		
 			
 			return 1;
 		}
@@ -587,8 +703,8 @@ int main(int argc, char *argv[]){
 	}
 
 	else{
-		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s \
-		-d [video to decode] [output file]\n",argv[0],argv[0]);		
+		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s ",argv[0],argv[0]);
+		fprintf(stderr,"-d [video to decode] [output file]\n");		
 		
 		return 1;	
 	}
