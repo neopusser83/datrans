@@ -16,12 +16,15 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-/*
-TODO:
-	* Improve code structure.
+/* TODO:
+	* Improve the code structure.
 	* Implement fork() for MinGW.
 	* Implement image writing in threads for improved speed.
 	* Make the program independent of ffmpeg.
+	* Add a quiet mode.
+	* Add a no-confirm mode (for scripting).
+	* Add a video codec chooser.
+	* Add a resolution chooser.
 */
 
 #include <stdio.h>
@@ -210,8 +213,12 @@ int encode(char *filename){
 	
 	change_color(B_RED);
 	fprintf(stderr," > Press any key to continue...");
-
+	
+	#ifndef __WIN32
 	getchar();
+	#else
+	getch();
+	#endif
 
 	long unsigned int buf_ind = 0;
 	
@@ -587,6 +594,7 @@ int decode(char *input_filename, char *output_filename){
 	printf(" * approximate size: %d bytes\n",aprox_size);
 	change_color(B_RED);
 	printf(" > Press any key to continue...\n");
+
 	#ifndef __WIN32
 	getchar();
 	#else
