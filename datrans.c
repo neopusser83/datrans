@@ -5,7 +5,7 @@
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+    any later version.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,6 +18,7 @@
 
 /*
 TODO:
+	* Improve code structure.
 	* Implement fork() for MinGW.
 	* Implement image writing in threads for improved speed.
 	* Make the program independent of ffmpeg.
@@ -39,6 +40,7 @@ TODO:
 
 #ifdef __WIN32
 #include <windows.h>
+#include <conio.h>
 #endif
 
 #define PNG_WIDTH  1280
@@ -138,7 +140,7 @@ int get_pixel(png_bytep row, int x, int y){
 
 }
 
-int dig(int num) {
+int dig(int num){
 	int quan = 0;
 
 	if (num == 0) {
@@ -151,6 +153,35 @@ int dig(int num) {
 	}
 
 	return quan;
+}
+
+#ifdef __WIN32
+
+#define B_GREEN	10
+#define B_WHITE	15
+#define	B_RED	12
+#define RED		4
+#define WHITE	7
+#define CYAN	3
+
+#else
+
+#define B_GREEN	10
+#define B_WHITE	15
+#define	B_RED	1
+#define RED		9
+#define WHITE	7
+#define CYAN	6
+
+#endif
+
+void change_color(int color){
+	#ifndef __WIN32
+	printf("\033[38;5;%dm",color);
+	#else
+	HANDLE hCon = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleTextAttribute(hCon,color);
+	#endif
 }
 
 int encode(char *filename){
@@ -172,11 +203,13 @@ int encode(char *filename){
 
 	img_quant++;
 
-	fprintf(stderr,"Max image size: %ld bytes\n",max_img_size);
-	fprintf(stderr,"Input buffer size: %ld bytes\n",sz);	
-	fprintf(stderr,"Frame quant: %d\n\n",img_quant);
+	change_color(B_WHITE);	
+	fprintf(stderr," * Max image size: %ld bytes\n",max_img_size);
+	fprintf(stderr," * Input buffer size: %ld bytes\n",sz);	
+	fprintf(stderr," * Frame quant: %d\n\n",img_quant);
 	
-	fprintf(stderr,"Press any key to continue...\n");
+	change_color(B_RED);
+	fprintf(stderr," > Press any key to continue...");
 
 	getchar();
 
@@ -209,16 +242,18 @@ int encode(char *filename){
 	#endif
 
 	char c;
-
+		
+	change_color(B_GREEN);
+	printf("\n");
 	for(frame_index = 0; frame_index < img_quant; frame_index++){
 
 		img_index(png_filename,frame_index,pid);
 		png_output = fopen(png_filename,"wb");
 
 		percent = (100*frame_index)/(img_quant-1);
-		fprintf(stderr,"Writing data to: %s | %d%%",png_filename,percent);
+		fprintf(stderr," :: Writing data to: %s | %d%%",png_filename,percent);
 
-		for(int i=0;i<46+dig(percent)+dig(pid)+1;i++){
+		for(int i=0;i<50+dig(percent)+dig(pid)+1;i++){
 			fprintf(stderr,"\b");
 		}
 
@@ -295,7 +330,7 @@ int encode(char *filename){
 		
 		free(info);
 	}
-
+	
 	fclose(input);
 	free(num);
 	free(png_filename);
@@ -311,7 +346,7 @@ int encode(char *filename){
 	int status;
 	
 	if(pidC > 0){
-		printf("Encoding video with ffmpeg...\n");
+		printf("\n :: Encoding video with ffmpeg...\n");
 	}
 
 	else if(pidC == 0){
@@ -330,8 +365,8 @@ int encode(char *filename){
 	}
 
 	else{
-		//Error
-		printf("Error creating child process for ffmpeg");
+		change_color(RED);
+		printf(" !! Error creating child process for ffmpeg");
 		return 1;
 	}
 	
@@ -348,8 +383,8 @@ int encode(char *filename){
 */
 	FILE *ffmpeg_exe_path = fopen("ffmpeg.txt","r");
 	if(ffmpeg_exe_path == NULL){
-		perror("fmpeg.txt");
-		
+		change_color(RED);
+		perror("!! fmpeg.txt");
 		return 1;
 	}
 	
@@ -358,8 +393,10 @@ int encode(char *filename){
 	fseek(ffmpeg_exe_path,0L,SEEK_SET);
 	
 	if(fen_sz > 256){
-		fprintf(stderr, "fmpeg.txt is very large. Please check it.\n");
-		fclose(ffmpeg_exe_path);
+		change_color(RED);
+		fprintf(stderr, " !! fmpeg.txt is very large. Please check it.\n");
+		fclose(ffmpeg_exe_path);		
+		change_color(WHITE);
 		return 1;
 	}
 	rewind(ffmpeg_exe_path);
@@ -379,7 +416,7 @@ int encode(char *filename){
 
 	char *ffm_args = (char *)malloc(sizeof(char) * 256);	
 	sprintf(ffm_args,"\"%s\" -framerate 30 -i %s \
-	-c:v libx265 -crf 0 -vf fps=30 %s -hide_banner -loglevel error \
+	-c:v libx264 -crf 0 -vf fps=30 %s -hide_banner -loglevel error \
 	-stats",ffm_bin,ffm_input,output_vid_name);
 		
 	system(ffm_args);
@@ -388,10 +425,9 @@ int encode(char *filename){
 	free(ffm_input);
 	free(output_vid_name);
 #endif
-
-	printf("\nAll done!\n");
-
-	getchar();
+	change_color(B_WHITE);
+	printf("\n :: All done!\n");
+	change_color(WHITE);
 
 	return 0;
 }
@@ -446,10 +482,14 @@ int decode(char *input_filename, char *output_filename){
 	an alternative for fork() function for MinGW. I'll work
 	on it.
 */
+	change_color(B_GREEN);
+	printf(" :: Extracting frames of %s\n",input_filename);
 
 	FILE *ffmpeg_exe_path = fopen("ffmpeg.txt","r");
 	if(ffmpeg_exe_path == NULL){
-		perror("fmpeg.txt");
+		change_color(4);
+		perror("!! fmpeg.txt");
+		change_color(7);
 		
 		return 1;
 	}
@@ -459,8 +499,10 @@ int decode(char *input_filename, char *output_filename){
 	fseek(ffmpeg_exe_path,0L,SEEK_SET);
 	
 	if(fen_sz > 256){
-		fprintf(stderr, "fmpeg.txt is very large. Please check it.\n");
+		change_color(RED);
+		fprintf(stderr, " !! fmpeg.txt is very large. Please check it.\n");
 		fclose(ffmpeg_exe_path);		
+		change_color(WHITE);
 		return 1;
 	}
 	rewind(ffmpeg_exe_path);
@@ -482,13 +524,17 @@ int decode(char *input_filename, char *output_filename){
 
 	FILE * out = fopen(output_filename,"wb");
 	if(!out){
-		fprintf(stderr,"Error creating file: %s\n",output_filename);
+		change_color(RED);
+		fprintf(stderr," !! Error creating file: %s\n",output_filename);
+		change_color(WHITE);
 		return 1;
 	}
 	
 	DIR *dir = opendir(input_dir);
 	if(dir == NULL){
-		fprintf(stderr,"Error opening directory: %s\n",input_dir);
+		change_color(RED);
+		fprintf(stderr," !! Error opening directory: %s\n",input_dir);
+		change_color(WHITE);
 		return 1;
 	}
 	char framename[7]; /*frame_*/
@@ -525,7 +571,9 @@ int decode(char *input_filename, char *output_filename){
 	}
 		
 	if(!frame_count){
-		fprintf(stderr,"No frame files found!\n");
+		change_color(RED);
+		fprintf(stderr," !! No frame files found.\n");
+		change_color(WHITE);
 		return 1;
 	}
 	
@@ -533,11 +581,18 @@ int decode(char *input_filename, char *output_filename){
 
 	int aprox_size = ((PNG_WIDTH*PNG_HEIGHT)/(PIXEL_SIZE*PIXEL_SIZE));
 	aprox_size = aprox_size*((frame_count)/WORD_SIZE);
-
-	printf("Frames: %d\n",frame_count);
-	printf("approximate size: %d bytes\n",aprox_size);
-
+	
+	change_color(B_WHITE);
+	printf(" * Frames: %d\n",frame_count);
+	printf(" * approximate size: %d bytes\n",aprox_size);
+	change_color(B_RED);
+	printf(" > Press any key to continue...\n");
+	#ifndef __WIN32
 	getchar();
+	#else
+	getch();
+	#endif
+	change_color(B_GREEN);
 
 	png_structp png;
 	png_infop info;
@@ -546,22 +601,26 @@ int decode(char *input_filename, char *output_filename){
 
 	for(int i=0;i<frame_count;i++){
 		percent = (100*i)/(frame_count-1);
-		fprintf(stderr,"Decoding %s  | %d%%",filenames[i],percent);
+		fprintf(stderr," :: Decoding %s  | %d%%",filenames[i],percent);
 
-		for(int i=0;i<47+dig(percent)+strlen(input_dir)+1;i++)
+		for(int i=0;i<51+dig(percent)+strlen(input_dir)+1;i++)
 			fprintf(stderr,"\b");
 
 
 		frame = fopen(filenames[i],"rb");
 		if(!frame){
-			fprintf(stderr,"Error opening file: %s",filenames[i]);
+			change_color(RED);
+			fprintf(stderr,"\n !! Error opening file: %s",filenames[i]);
+			change_color(WHITE);
 			return 1;
 		}
 		png = png_create_read_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
 
 		if(!png){
 			fclose(frame);
-			fprintf(stderr,"Error creating PNG read struct\n");
+			change_color(RED);
+			fprintf(stderr," !! Error creating PNG read struct\n");
+			change_color(WHITE);
 			return 1;
 		}
 
@@ -570,7 +629,9 @@ int decode(char *input_filename, char *output_filename){
 		if(!info){
 			png_destroy_read_struct(&png,NULL,NULL);
 			fclose(frame);
-			fprintf(stderr,"Error creating PNG info struct\n");
+			change_color(RED);
+			fprintf(stderr," !! Error creating PNG info struct\n");
+			change_color(WHITE);
 			return 1;
 		}
 
@@ -664,28 +725,88 @@ int decode(char *input_filename, char *output_filename){
 		}
 	}
 	rmdir(input_dir);
+	
+	change_color(B_WHITE);
+	printf("\n :: All done!\n");
+	change_color(WHITE);
 
-	fprintf(stderr,"\nAll done!\n");
-//	printf("Please remove the directory: %s\n",input_dir);
 	fclose(out);
 	return 0;
 }
 
-int main(int argc, char *argv[]){
+void clear(void){
+	#ifndef __WIN32
+	printf("\033[H\033[J"); // XD
+	#else
+    HANDLE hcon = GetStdHandle(STD_OUTPUT_HANDLE);
+    COORD coord = {0,0};
+    DWORD count;
 
+    CONSOLE_SCREEN_BUFFER_INFO cs;
+    GetConsoleScreenBufferInfo(hcon,&cs);
+
+    FillConsoleOutputCharacter(hcon,' ', cs.dwSize.X*cs.dwSize.Y,coord,&count);
+    SetConsoleCursorPosition(hcon, coord);
+	#endif
+}
+
+void print_logo(void){
+	change_color(B_GREEN);
+	printf("\n ________  ________  _________  ________  ________  ________   ________      \n");
+	printf("|\\   ___ \\|\\   __  \\|\\___   ___\\\\   __  \\|\\   __  \\|\\   ___  \\|\\   ____\\     \n");
+	printf("\\ \\  \\_|\\ \\ \\  \\|\\  \\|___ \\  \\_\\ \\  \\|\\  \\ \\  \\|\\  \\ \\  \\\\ \\  \\ \\  \\___|_    \n");
+	printf(" \\ \\  \\ \\\\ \\ \\   __  \\   \\ \\  \\ \\ \\   _  _\\ \\   __  \\ \\  \\\\ \\  \\ \\_____  \\   \n");
+	printf("  \\ \\  \\_\\\\ \\ \\  \\ \\  \\   \\ \\  \\ \\ \\  \\\\  \\\\ \\  \\ \\  \\ \\  \\\\ \\  \\|____|\\  \\  \n");
+	printf("   \\ \\_______\\ \\__\\ \\__\\   \\ \\__\\ \\ \\__\\\\ _\\\\ \\__\\ \\__\\ \\__\\\\ \\__\\____\\_\\  \\ \n");
+	printf("    \\|_______|\\|__|\\|__|    \\|__|  \\|__|\\|__|\\|__|\\|__|\\|__| \\|__|\\_________\\\n");
+	printf("                                                                 \\|_________|\n\n");
+	change_color(CYAN);
+	printf("   --> By neopusser83 | get it at ");
+	change_color(B_WHITE);
+	printf("https://github.com/neopusser83/datrans");
+	change_color(CYAN);
+	printf(" <--   \n");
+	change_color(B_WHITE);
+	printf("\n");
+
+}
+
+
+int main(int argc, char *argv[]){
+	
+	clear();
+	print_logo();
 	int opt;
 
 	if(argc == 1){
-		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s ",argv[0],argv[0]);
+		fprintf(stderr," Usage:\n\n\t%s -e [file to encode]\n  or\n\t%s ",
+		basename(argv[0]),basename(argv[0]));
 		fprintf(stderr,"-d [video to decode] [output file]\n");		
+		
+		change_color(WHITE);
+		fprintf(stderr,"\n > Press any key to exit ");
+		#ifdef __WIN32
+		getch();
+		#else
+		getchar();		
+		#endif
 		
 		return 1;		
 	}
 
 	if(!strcmp(argv[1],"-e")){
 		if(argc != 3){
-			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s ",argv[0],argv[0]);
+			fprintf(stderr," Usage:\n\n\t%s -e [file to encode]\n  or\n\t%s ",
+			basename(argv[0]),basename(argv[0]));
 			fprintf(stderr,"-d [video to decode] [output file]\n");		
+			
+			change_color(WHITE);
+			fprintf(stderr,"\n > Press any key to exit ");
+			#ifdef __WIN32
+			getch();
+			#else
+			getchar();		
+			#endif
 			
 			return 1;
 		}
@@ -694,18 +815,36 @@ int main(int argc, char *argv[]){
 
 	else if(!strcmp(argv[1],"-d")){
 		if(argc != 4){
-			fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s ",argv[0],argv[0]);
+			fprintf(stderr," Usage:\n\n\t%s -e [file to encode]\n  or\n\t%s ",
+			basename(argv[0]),basename(argv[0]));
 			fprintf(stderr,"-d [video to decode] [output file]\n");		
-			
+		
+			change_color(WHITE);
+			fprintf(stderr,"\n > Press any key to exit ");
+			#ifdef __WIN32
+			getch();
+			#else
+			getchar();		
+			#endif
+	
 			return 1;
 		}
 		opt = 0;
 	}
 
 	else{
-		fprintf(stderr,"Usage:\n\n%s -e [file to encode]\nor\n%s ",argv[0],argv[0]);
+		fprintf(stderr," Usage:\n\n\t%s -e [file to encode]\n  or\n\t%s ",
+		basename(argv[0]),basename(argv[0]));
 		fprintf(stderr,"-d [video to decode] [output file]\n");		
 		
+		change_color(WHITE);
+		fprintf(stderr,"\n > Press any key to exit ");
+		#ifdef __WIN32
+		getch();
+		#else
+		getchar();		
+		#endif
+					
 		return 1;	
 	}
 
