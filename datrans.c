@@ -1,5 +1,5 @@
 /*
-    datrans: Convert any files to video.
+    datrans: Convert any file to video.
     Copyright (C) 2023  neopusser83  <srmomichi@yahoo.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -252,6 +252,7 @@ int encode(char *filename){
 		
 	change_color(B_GREEN);
 	printf("\n");
+
 	for(frame_index = 0; frame_index < img_quant; frame_index++){
 
 		img_index(png_filename,frame_index,pid);
@@ -263,7 +264,7 @@ int encode(char *filename){
 		for(int i=0;i<50+dig(percent)+dig(pid)+1;i++){
 			fprintf(stderr,"\b");
 		}
-
+	
 		png = png_create_write_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
 
 		if(!png){
@@ -289,6 +290,9 @@ int encode(char *filename){
 			PNG_COMPRESSION_TYPE_DEFAULT,
 			PNG_FILTER_TYPE_DEFAULT
 		);
+
+//		png_set_compression_level(png,9);
+//		png_set_filter(png,PNG_FILTER_TYPE_BASE,PNG_FILTER_NONE);
 
 		png_write_info(png,info);
 
@@ -353,20 +357,22 @@ int encode(char *filename){
 	int status;
 	
 	if(pidC > 0){
+		change_color(B_GREEN);
 		printf("\n :: Encoding video with ffmpeg...\n");
 	}
 
 	else if(pidC == 0){
-		//ffmpeg -framerate 30 -i frame_%06d.png -c:v libx265 -crf 0 -vf
-		//fps=30 out.mp4
+	//ffmpeg -framerate 30 -i 10206_frames/frame_%06d.png -c:v
+	//libx265 -crf 25 -preset fast output_fast.mp4
+
 		execlp("/usr/bin/ffmpeg","ffmpeg",
-			"-framerate","30",
-			"-i",ffm_input,
-			"-c:v","libx265","-crf","0",
-			"-vf","fps=30",
-			output_vid_name,
 			"-hide_banner",
 			"-loglevel","error","-stats",
+			"-framerate","30",
+			"-i",ffm_input,
+			"-c:v","libx265","-crf","25",
+			"-preset","slow",
+			output_vid_name,
 			NULL
 		);
 	}
@@ -388,6 +394,9 @@ int encode(char *filename){
 	an alternative for fork() function for MinGW. I'll work
 	on it.
 */
+	change_color(B_GREEN);
+	printf("\n :: Encoding video with ffmpeg...\n");
+
 	FILE *ffmpeg_exe_path = fopen("ffmpeg.txt","r");
 	if(ffmpeg_exe_path == NULL){
 		change_color(RED);
@@ -423,7 +432,7 @@ int encode(char *filename){
 
 	char *ffm_args = (char *)malloc(sizeof(char) * 256);	
 	sprintf(ffm_args,"\"%s\" -framerate 30 -i %s \
-	-c:v libx264 -crf 0 -vf fps=30 %s -hide_banner -loglevel error \
+	-c:v libx265 -crf 25 -preset fast %s -hide_banner -loglevel error \
 	-stats",ffm_bin,ffm_input,output_vid_name);
 		
 	system(ffm_args);
@@ -465,7 +474,8 @@ int decode(char *input_filename, char *output_filename){
 	pidC = fork();
 
 	if(pidC > 0){
-		printf("Extracting frames of %s\n",input_filename);
+		change_color(B_GREEN);
+		printf(" :: Extracting frames of %s\n",input_filename);
 	}
 	else if(pidC == 0){
 		
@@ -593,14 +603,14 @@ int decode(char *input_filename, char *output_filename){
 	printf(" * Frames: %d\n",frame_count);
 	printf(" * approximate size: %d bytes\n",aprox_size);
 	change_color(B_RED);
-	printf(" > Press any key to continue...\n");
-
+	printf(" > Press any key to continue... ");
+	change_color(B_GREEN);	
+	printf("\n");
 	#ifndef __WIN32
 	getchar();
 	#else
 	getch();
 	#endif
-	change_color(B_GREEN);
 
 	png_structp png;
 	png_infop info;
@@ -760,14 +770,14 @@ void clear(void){
 
 void print_logo(void){
 	change_color(B_GREEN);
-	printf("\n ________  ________  _________  ________  ________  ________   ________      \n");
-	printf("|\\   ___ \\|\\   __  \\|\\___   ___\\\\   __  \\|\\   __  \\|\\   ___  \\|\\   ____\\     \n");
-	printf("\\ \\  \\_|\\ \\ \\  \\|\\  \\|___ \\  \\_\\ \\  \\|\\  \\ \\  \\|\\  \\ \\  \\\\ \\  \\ \\  \\___|_    \n");
-	printf(" \\ \\  \\ \\\\ \\ \\   __  \\   \\ \\  \\ \\ \\   _  _\\ \\   __  \\ \\  \\\\ \\  \\ \\_____  \\   \n");
-	printf("  \\ \\  \\_\\\\ \\ \\  \\ \\  \\   \\ \\  \\ \\ \\  \\\\  \\\\ \\  \\ \\  \\ \\  \\\\ \\  \\|____|\\  \\  \n");
-	printf("   \\ \\_______\\ \\__\\ \\__\\   \\ \\__\\ \\ \\__\\\\ _\\\\ \\__\\ \\__\\ \\__\\\\ \\__\\____\\_\\  \\ \n");
-	printf("    \\|_______|\\|__|\\|__|    \\|__|  \\|__|\\|__|\\|__|\\|__|\\|__| \\|__|\\_________\\\n");
-	printf("                                                                 \\|_________|\n\n");
+	printf("\n  ________  ________  _________  ________  ________  ________   ________      \n");
+	printf(" |\\   ___ \\|\\   __  \\|\\___   ___\\\\   __  \\|\\   __  \\|\\   ___  \\|\\   ____\\     \n");
+	printf(" \\ \\  \\_|\\ \\ \\  \\|\\  \\|___ \\  \\_\\ \\  \\|\\  \\ \\  \\|\\  \\ \\  \\\\ \\  \\ \\  \\___|_    \n");
+	printf("  \\ \\  \\ \\\\ \\ \\   __  \\   \\ \\  \\ \\ \\   _  _\\ \\   __  \\ \\  \\\\ \\  \\ \\_____  \\   \n");
+	printf("   \\ \\  \\_\\\\ \\ \\  \\ \\  \\   \\ \\  \\ \\ \\  \\\\  \\\\ \\  \\ \\  \\ \\  \\\\ \\  \\|____|\\  \\  \n");
+	printf("    \\ \\_______\\ \\__\\ \\__\\   \\ \\__\\ \\ \\__\\\\ _\\\\ \\__\\ \\__\\ \\__\\\\ \\__\\____\\_\\  \\ \n");
+	printf("     \\|_______|\\|__|\\|__|    \\|__|  \\|__|\\|__|\\|__|\\|__|\\|__| \\|__|\\_________\\\n");
+	printf("                                                                  \\|_________|\n\n");
 	change_color(CYAN);
 	printf("   --> By neopusser83 | get it at ");
 	change_color(B_WHITE);
@@ -782,6 +792,10 @@ void print_logo(void){
 
 int main(int argc, char *argv[]){
 	
+	#ifdef __WIN32
+	SetConsoleTitle("Datrans");
+	#endif
+	
 	clear();
 	print_logo();
 	int opt;
@@ -789,14 +803,12 @@ int main(int argc, char *argv[]){
 	if(argc == 1){
 		fprintf(stderr," Usage:\n\n\t%s -e [file to encode]\n  or\n\t%s ",
 		basename(argv[0]),basename(argv[0]));
-		fprintf(stderr,"-d [video to decode] [output file]\n");		
-		
+		fprintf(stderr,"-d [video to decode] [output file]\n\n");		
+	
 		change_color(WHITE);
-		fprintf(stderr,"\n > Press any key to exit ");
 		#ifdef __WIN32
+		fprintf(stderr," > Press any key to exit ");
 		getch();
-		#else
-		getchar();		
 		#endif
 		
 		return 1;		
@@ -806,14 +818,12 @@ int main(int argc, char *argv[]){
 		if(argc != 3){
 			fprintf(stderr," Usage:\n\n\t%s -e [file to encode]\n  or\n\t%s ",
 			basename(argv[0]),basename(argv[0]));
-			fprintf(stderr,"-d [video to decode] [output file]\n");		
-			
+			fprintf(stderr,"-d [video to decode] [output file]\n\n");		
+		
 			change_color(WHITE);
-			fprintf(stderr,"\n > Press any key to exit ");
 			#ifdef __WIN32
+			fprintf(stderr," > Press any key to exit ");
 			getch();
-			#else
-			getchar();		
 			#endif
 			
 			return 1;
@@ -825,14 +835,12 @@ int main(int argc, char *argv[]){
 		if(argc != 4){
 			fprintf(stderr," Usage:\n\n\t%s -e [file to encode]\n  or\n\t%s ",
 			basename(argv[0]),basename(argv[0]));
-			fprintf(stderr,"-d [video to decode] [output file]\n");		
+			fprintf(stderr,"-d [video to decode] [output file]\n\n");		
 		
 			change_color(WHITE);
-			fprintf(stderr,"\n > Press any key to exit ");
 			#ifdef __WIN32
+			fprintf(stderr," > Press any key to exit ");
 			getch();
-			#else
-			getchar();		
 			#endif
 	
 			return 1;
@@ -843,16 +851,14 @@ int main(int argc, char *argv[]){
 	else{
 		fprintf(stderr," Usage:\n\n\t%s -e [file to encode]\n  or\n\t%s ",
 		basename(argv[0]),basename(argv[0]));
-		fprintf(stderr,"-d [video to decode] [output file]\n");		
-		
+		fprintf(stderr,"-d [video to decode] [output file]\n\n");		
+	
 		change_color(WHITE);
-		fprintf(stderr,"\n > Press any key to exit ");
 		#ifdef __WIN32
+		fprintf(stderr," > Press any key to exit ");
 		getch();
-		#else
-		getchar();		
 		#endif
-					
+				
 		return 1;	
 	}
 
